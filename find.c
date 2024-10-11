@@ -58,7 +58,7 @@ void find(const char *dir, const char *filename){
         concatenate(tempPath, dir, "/");
         char fullPath[500];
         concatenate(fullPath,tempPath, de.name );
-        printf("Full Path %s\n", fullPath);
+        // printf("Full Path %s\n", fullPath);
         // now i have the full path check if it is a directory
         struct stat st;
         if (stat(fullPath, &st) < 0){
@@ -68,20 +68,20 @@ void find(const char *dir, const char *filename){
 
         // Check the type field in the stat structure
         if (st.type == T_DIR) {
-            printf("Directory\n");
-            printf("Recursion!!!\n");
+            // printf("Directory\n");
+            // printf("Recursion!!!\n");
             find(fullPath, filename); // Recursive call
-            
+            continue;
             
         } 
         
         
-        // skip the . and .. entreis
+        // print the file and its path if found
         if (strcmp(de.name, filename) == 0){
             printf("%s/%s\n",dir,de.name);
         }
 
-        printf("%s/%s inum=%d\n",dir,de.name, de.inum);
+        // printf("%s/%s inum=%d\n",dir,de.name, de.inum);
         
 
     }
@@ -100,7 +100,7 @@ int main(int argc, char *argv[]){
     char *path = argv[1];       // Use pointer to string
     char *filename = argv[2];   // Use pointer to string
 
-    printf("Path %s filename %s \n", path, filename);
+    // printf("Path %s filename %s \n", path, filename);
 
     find(path, filename);
 
