@@ -24,6 +24,9 @@ int getcmd(char *buf, int nbuf) {
 */
 __attribute__((noreturn))
 void run_command(char *buf, int nbuf, int *pcp) {
+  // split the command up into commands, if multiple
+
+  // check for  ';' and split into commands here
   /* Useful data structures and flags. */
   char *arguments[10]; // Command arguments
   int numargs = 0;
@@ -69,7 +72,6 @@ void run_command(char *buf, int nbuf, int *pcp) {
         while (buf[i + 1] == ' ') i++; // Skip any spaces after '>'
         file_name_r = &buf[i];
         // check if buf[i] is a space, if it is the next char is start of filename
-        //printf("buf[i] is %s and i is %d\n", &buf[i],i);
         if (buf[i] == ' '){
           file_name_r = &buf[i+1];
         }
@@ -77,12 +79,18 @@ void run_command(char *buf, int nbuf, int *pcp) {
       continue; // Skip the rest of the loop
       
     } else if (buf[i] == '<'){
-      redirection_left = 1;
       buf[i] = '\0';
-      i++;
-      
-      while (buf[i + 1] == ' ') i++; // Skip any spaces after '<'
-      file_name_l = &buf[i];
+      redirection_left = 1;
+      if (buf[i+1] != ' '){
+        file_name_l = &buf[i+1];
+      } else {
+        while (buf[i + 1] == ' ') i++; // Skip any spaces after '>'
+        file_name_l = &buf[i];
+        // check if buf[i] is a space, if it is the next char is start of filename
+        if (buf[i] == ' '){
+          file_name_l = &buf[i+1];
+        }
+      }
       continue; // Skip the rest of the loop
       
     }
@@ -130,7 +138,6 @@ arguments[numargs] = 0; // Null-terminate the argument array
         
       }
       if (redirecttion_append_right){
-        printf("Redirection append\n");
         // open the file for writing
         int fd = open(file_name_r, O_RDWR);
         if (fd >= 0){
@@ -144,17 +151,39 @@ arguments[numargs] = 0; // Null-terminate the argument array
           close(fd);
         }
       }
-      if (redirection_left){
-        printf("File name is %s \n", file_name_l);
-      }
+      if (redirection_left) {
+        // Open the file for reading
+        //printf("%s\n",file_name_l);
+        int fd = open(file_name_l, O_RDONLY);
+        if (fd < 0) {
+            printf("Failed to open %s for reading\n", file_name_l);
+            exit(1);
+        }
+        
+        // Close stdin and redirect it to the file
+        close(0); // Close the original stdin
+        
+        dup(fd);
+          // Duplicate fd onto stdin (0)
+        close(fd); // Close the file descriptor as it's no longer needed
+        // need to work out how many args before '<'
+        arguments[numargs - 1] = 0;
+
+
+        
+    }
+
       // Child process
+      //
       if (exec(arguments[0], arguments) < 0);
       // If exec fails
       printf("Unknown command: %s\n", arguments[0]);
       exit(1);
     } else {
       // Parent process
+      
       wait(0);
+      //fprintf(1, "Executing command:arg0 %s, arg1 %s \n",arguments[0], arguments[1]);
     }
   }
   
