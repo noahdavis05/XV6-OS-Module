@@ -33,21 +33,9 @@ int getcmd(char *buf, int nbuf) {
 */
 __attribute__((noreturn))
 void run_command(char *buf, int nbuf, int *pcp) {
+  
   // check for a ; and make a new string after the ;
   // then can recursively call this function with that string
-  
-
-  
-
-  
-
-
-
-  // MOVE THIS CODE TO GETCMD, THEN CALL THE FUNCTION AS MANY TIMES AS NEEDED.
-
-
-
-  // iterate through this array and execute these commands
 
   //printf("%s command 2\n", commands[1]);
   /* Useful data structures and flags. */
@@ -58,7 +46,7 @@ void run_command(char *buf, int nbuf, int *pcp) {
   int redirecttion_append_right = 0;
   char *file_name_l = 0;
   char *file_name_r = 0;
-  //int pipe_cmd = 0;
+  int pipe_cmd = 0;
   int sequence_cmd = 0;
   // for seqential commands
   int sequential = 0;
@@ -74,7 +62,7 @@ void run_command(char *buf, int nbuf, int *pcp) {
   /* Loop through the input buffer to extract arguments */
 
   for (int i = 0; i < nbuf; i++) {
-    if (sequential){
+    if (sequential || pipe_cmd){
       buf[i] = '\0';
     }
     else if (buf[i] == ' ' || buf[i] == '\n' || buf[i] == '\0') {
@@ -125,8 +113,13 @@ void run_command(char *buf, int nbuf, int *pcp) {
       }
       continue; // Skip the rest of the loop
       
-    } else if (buf[i] == ';' && sequential == 0){
-      sequential = 1;
+    } else if ((buf[i] == ';' && sequential == 0) || (buf[i] == '|' && pipe_cmd == 0)){
+      if (buf[i] == ';'){
+        sequential = 1;
+      } else {
+        pipe_cmd = 1;
+      }
+      
 
       // Calculate the length of the second command
       int j = 0;
@@ -148,6 +141,7 @@ void run_command(char *buf, int nbuf, int *pcp) {
       strcpy(second_command, &buf[i + 1 + j]);
 
       // Optionally, trim any leading spaces in the second command
+      //printf("First command: %s\n", buf);
       //printf("Second command: %s\n", second_command);
 
       // Null-terminate the first command (optional, to split the string)
@@ -171,8 +165,64 @@ arguments[numargs] = 0; // Null-terminate the argument array
     }
   }
 
+  // handle pipe commands here
+  if (pipe_cmd){
+    // create a pipe to pass data between
+    int pipefd[2]; // holds pipe's read and write ends
+
+    // create the pipe
+    if (pipe(pipefd) == -1){
+      printf("Pipe failed\n");
+      exit(1);
+    }
+
+    //printf("Executing command: %s\n", arguments[0]);
+
+    // fork for the left hand side of the command
+    if (fork() == 0){
+      // redirect the stdout to the write end of the pipe
+      close(pipefd[0]); // read end of pipe
+      close(1); // close stdout
+      dup(pipefd[1]); // duplicate pipes write end to stdout
+      close(pipefd[1]); // close the write end after duplication.
+
+      // execute left hand side
+      if (exec(arguments[0], arguments) == -1){
+        printf("Exec failed\n");
+        exit(1);
+      }
+    } else {
+      // in parent process after forking left command
+
+      // close write end of pipe as only needs to be read now
+      close(pipefd[1]);
+      if (second_command != 0){
+        if (fork() == 0){
+          // in the right side command now
+          close(0); // close stding
+          dup(pipefd[0]);
+          close(pipefd[0]);
+
+          // recursively run this command
+          run_command(second_command, strlen(second_command), pipefd);
+          free(second_command);
+        }
+      }
+      // close read end of pipe in parent
+      close(pipefd[0]);
+
+      wait(0);
+      if (second_command != 0){
+        wait(0);
+      }
+    }
+
+
+
+  }
+
   /* If this is a CD command, handle it separately */
-  if (strcmp(arguments[0], "cd") == 0) {
+  else if (strcmp(arguments[0], "cd") == 0) {
     if (numargs < 2) {
       printf("cd: missing argument\n");
     } else if (chdir(arguments[1]) != 0) {
@@ -261,12 +311,14 @@ int main(void) {
     pipe(pcp);
 
     // Read and run input commands
+    // this main function has been made just to ensure cd works, as it needs to be executed outside fork
+    
     while (getcmd(buf, sizeof(buf)) >= 0) {
         char *arguments[10];  // Array to hold command arguments
         int numargs = 0;
         int ws = 0;
 
-        // Loop through the input buffer to extract arguments
+        // Loop through the input buffer to extract arguments and run
         for (int i = 0; i < strlen(buf); i++) {
             if (buf[i] == ' ' || buf[i] == '\n' || buf[i] == '\0') {
                 if (ws != i) {  // Ensure we aren't capturing empty arguments
@@ -296,7 +348,7 @@ int main(void) {
             }
             continue;  // Skip the rest of the loop to avoid forking for "cd"
         }
-
+        
         // For all other commands, fork a new process
         if (fork() == 0) {
             // In the child process, execute the command
