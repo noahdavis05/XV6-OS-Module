@@ -5,18 +5,27 @@
 
 /* Read a line of characters from stdin. */
 int getcmd(char *buf, int nbuf) {
-  // print >>> then clear buffer
-  printf(">>> ");
-  memset(buf,0,nbuf);
+    // Print >>> then clear buffer
+    printf(">>> ");
+    memset(buf, 0, nbuf);
 
-  // read the user's input into buf
-  gets(buf, nbuf);
-  if (buf[0] == 0){
-    return -1;
-  }
+    // Read the user's input into buf
+    gets(buf, nbuf);
+    if (buf[0] == 0) {
+        return -1;  // Return -1 if input is empty
+    }
 
-  return 0;
+    // Remove the newline character if present
+    for (int i = 0; i < nbuf; i++) {
+        if (buf[i] == '\n') {
+            buf[i] = '\0';  // Replace \n with null terminator
+            break;  // Exit the loop after replacing
+        }
+    }
+
+    return 0;  // Return 0 on success
 }
+
 
 /*
   A recursive function which parses the command
@@ -247,18 +256,56 @@ arguments[numargs] = 0; // Null-terminate the argument array
 
 
 int main(void) {
-  static char buf[100];
-  int pcp[2];
-  pipe(pcp);
+    static char buf[100];
+    int pcp[2];
+    pipe(pcp);
 
-  // Read and run input commands
-  while(getcmd(buf, sizeof(buf)) >= 0) {
-    if(fork() == 0) {
-      run_command(buf, 100, pcp);
+    // Read and run input commands
+    while (getcmd(buf, sizeof(buf)) >= 0) {
+        char *arguments[10];  // Array to hold command arguments
+        int numargs = 0;
+        int ws = 0;
+
+        // Loop through the input buffer to extract arguments
+        for (int i = 0; i < strlen(buf); i++) {
+            if (buf[i] == ' ' || buf[i] == '\n' || buf[i] == '\0') {
+                if (ws != i) {  // Ensure we aren't capturing empty arguments
+                    buf[i] = '\0';  // Null-terminate the current argument
+                    if (numargs < 10) {
+                        
+                        arguments[numargs] = &buf[i + 1];  // Add the argument to the list
+                        numargs++;
+                    }
+
+                }
+                ws = i + 1;  // Update the word start to the next character
+            }
+        }
+
+        // Make sure we properly null-terminate the argument list
+        arguments[numargs] = 0;
+
+
+
+        // Handle the "cd" command in the parent process
+        if (numargs > 0 && strcmp(buf, "cd") == 0) {
+            if (numargs < 1) {
+                printf("cd: missing argument\n");
+            } else if (chdir(arguments[0]) != 0) {
+                printf("cd: %s: No such directory\n", arguments[0]);
+            }
+            continue;  // Skip the rest of the loop to avoid forking for "cd"
+        }
+
+        // For all other commands, fork a new process
+        if (fork() == 0) {
+            // In the child process, execute the command
+            run_command(buf, 100, pcp);
+        }
+
+        int child_status;
+        wait(&child_status);  // Wait for the child process to complete
     }
-    int child_status;
-    wait(&child_status);
-  }
 
-  exit(0);
+    exit(0);
 }
