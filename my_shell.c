@@ -24,9 +24,23 @@ int getcmd(char *buf, int nbuf) {
 */
 __attribute__((noreturn))
 void run_command(char *buf, int nbuf, int *pcp) {
-  // split the command up into commands, if multiple
+  // check for a ; and make a new string after the ;
+  // then can recursively call this function with that string
+  
 
-  // check for  ';' and split into commands here
+  
+
+  
+
+
+
+  // MOVE THIS CODE TO GETCMD, THEN CALL THE FUNCTION AS MANY TIMES AS NEEDED.
+
+
+
+  // iterate through this array and execute these commands
+
+  //printf("%s command 2\n", commands[1]);
   /* Useful data structures and flags. */
   char *arguments[10]; // Command arguments
   int numargs = 0;
@@ -37,15 +51,24 @@ void run_command(char *buf, int nbuf, int *pcp) {
   char *file_name_r = 0;
   //int pipe_cmd = 0;
   int sequence_cmd = 0;
+  // for seqential commands
+  int sequential = 0;
+  char *second_command = 0;
+  
+  
 
   /* Parse the command character by character */
-  int i = 0;
+  
   int ws = 0; // word start index
   //int start = 0;
 
   /* Loop through the input buffer to extract arguments */
-  for (i = 0; i < nbuf; i++) {
-    if (buf[i] == ' ' || buf[i] == '\n' || buf[i] == '\0') {
+
+  for (int i = 0; i < nbuf; i++) {
+    if (sequential){
+      buf[i] = '\0';
+    }
+    else if (buf[i] == ' ' || buf[i] == '\n' || buf[i] == '\0') {
         if (ws != i) { // Ensure we aren't capturing empty arguments
             buf[i] = '\0'; // Null-terminate the current argument
             if (numargs < 10) {
@@ -93,6 +116,33 @@ void run_command(char *buf, int nbuf, int *pcp) {
       }
       continue; // Skip the rest of the loop
       
+    } else if (buf[i] == ';' && sequential == 0){
+      sequential = 1;
+
+      // Calculate the length of the second command
+      int j = 0;
+      while (buf[i + 1 + j] == ' ') {
+          j++;  // Skip spaces
+      }
+      
+      // Calculate the length of the second command
+      int second_command_length = strlen(&buf[i + 1 + j]) + 1; // +1 for null terminator
+
+      // Allocate memory for second_command
+      second_command = (char *)malloc(second_command_length);
+      if (second_command == 0) {
+          printf("Memory allocation failed\n");
+          exit(1);
+      }
+
+      // Copy the part of buf after ';'
+      strcpy(second_command, &buf[i + 1 + j]);
+
+      // Optionally, trim any leading spaces in the second command
+      //printf("Second command: %s\n", second_command);
+
+      // Null-terminate the first command (optional, to split the string)
+      buf[i] = '\0';  // This will separate the first command from the second
     }
 }
 
@@ -181,8 +231,11 @@ arguments[numargs] = 0; // Null-terminate the argument array
       exit(1);
     } else {
       // Parent process
-      
       wait(0);
+      if (sequential){
+        run_command(second_command, strlen(second_command), pcp);
+        free(second_command);
+      }
       //fprintf(1, "Executing command:arg0 %s, arg1 %s \n",arguments[0], arguments[1]);
     }
   }
